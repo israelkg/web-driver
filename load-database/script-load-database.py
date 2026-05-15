@@ -58,40 +58,25 @@ def executar_etl_completo(caminho_csv):
         cur = conn.cursor()
         start_total = time.time()
 
-        # Limpa fato antes de recarregar (dims já populadas pelo create_database)
-        cur.execute("TRUNCATE TABLE fato_passageiro RESTART IDENTITY")
+        cur.execute("TRUNCATE TABLE passageiros")
 
-        # Mapear FKs via merge com dims
-        cur.execute("SELECT id_classe, pclass FROM dim_classe")
-        dim_classe = pd.DataFrame(cur.fetchall(), columns=['id_classe', 'pclass'])
-        dim_classe['pclass'] = dim_classe['pclass'].astype('Int64')
-
-        cur.execute("SELECT id_embarque, embarked FROM dim_embarque")
-        dim_embarque = pd.DataFrame(cur.fetchall(), columns=['id_embarque', 'embarked'])
-        dim_embarque['embarked'] = dim_embarque['embarked'].astype('string')
-
-        df = df.merge(dim_classe, on='pclass', how='left')
-        df = df.merge(dim_embarque, on='embarked', how='left')
-        df['id_classe'] = df['id_classe'].astype('Int64')
-        df['id_embarque'] = df['id_embarque'].astype('Int64')
-
-        colunas_fato = [
-            'passenger_id', 'survived', 'id_classe', 'name', 'sex',
-            'age', 'sibsp', 'parch', 'ticket', 'fare', 'cabin', 'id_embarque'
+        colunas = [
+            'passenger_id', 'survived', 'pclass', 'name', 'sex',
+            'age', 'sibsp', 'parch', 'ticket', 'fare', 'cabin', 'embarked'
         ]
 
-        print(f"Inserindo {len(df)} passageiros em fato_passageiro...")
-        bulk_copy_to_db(cur, df, 'fato_passageiro', colunas_fato)
+        print(f"Inserindo {len(df)} passageiros...")
+        bulk_copy_to_db(cur, df, 'passageiros', colunas)
 
         conn.commit()
 
-        cur.execute("SELECT COUNT(*) FROM fato_passageiro")
+        cur.execute("SELECT COUNT(*) FROM passageiros")
         total = cur.fetchone()[0]
-        cur.execute("SELECT survived, COUNT(*) FROM fato_passageiro GROUP BY survived ORDER BY survived")
+        cur.execute("SELECT survived, COUNT(*) FROM passageiros GROUP BY survived ORDER BY survived")
         sobrev = cur.fetchall()
 
         print(f"ETL finalizado em {time.time() - start_total:.2f}s")
-        print(f"Total em fato_passageiro: {total}")
+        print(f"Total em passageiros: {total}")
         print(f"Sobreviventes (0=nao, 1=sim): {sobrev}")
 
     except Exception as e:

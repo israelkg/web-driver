@@ -2,12 +2,14 @@
 
 Projeto da disciplina **Ciência de Dados e Mineração de Dados** (3º período).
 
-Pipeline ETL completo:
+Pipeline ETL:
 1. **Extract**: Playwright + BeautifulSoup baixam o dataset Titanic do GitHub
 2. **Transform**: pandas tipa as colunas e trata nulos
-3. **Load**: psycopg2 carrega no PostgreSQL usando esquema estrela
+3. **Load**: psycopg2 carrega no PostgreSQL em uma tabela única `passageiros`
 
 Fonte do dataset: https://github.com/datasciencedojo/datasets/blob/master/titanic.csv
+
+> **Nota de modelagem:** o dataset tem só 891 linhas e 12 colunas, então uma tabela única já é suficiente. Star schema (dims + fato) seria overkill aqui — só faria sentido com volume alto, cardinalidade real nas categóricas ou relações M:N.
 
 ---
 
@@ -25,7 +27,7 @@ WebDriver/
 ├── script-extract/
 │   └── task3_titanic.py          # Playwright + BS4 baixa o CSV
 ├── script-create-database/
-│   ├── tables.sql                # DDL: dim_classe, dim_embarque, fato_passageiro
+│   ├── tables.sql                # DDL: tabela passageiros
 │   └── create_database.py        # executa o SQL
 └── load-database/
     └── script-load-database.py   # ETL pandas + COPY
@@ -79,7 +81,7 @@ Dentro da pasta `WebDriver/`, no Git Bash:
 # 1. Extract - baixa titanic.csv para dados/
 cd script-extract && ../.venv/Scripts/python.exe task3_titanic.py && cd ..
 
-# 2. Create - cria as tabelas no banco titanic
+# 2. Create - cria a tabela no banco titanic
 cd script-create-database && ../.venv/Scripts/python.exe create_database.py && cd ..
 
 # 3. Load - carrega o CSV no Postgres
@@ -100,45 +102,42 @@ No psql, DBeaver ou pgAdmin conectado ao banco `titanic`:
 
 ```sql
 -- Total de passageiros carregados (esperado: 891)
-SELECT COUNT(*) FROM fato_passageiro;
+SELECT COUNT(*) FROM passageiros;
 
 -- Sobreviventes (esperado: 549 mortos, 342 sobreviventes)
-SELECT survived, COUNT(*) FROM fato_passageiro GROUP BY survived ORDER BY survived;
+SELECT survived, COUNT(*) FROM passageiros GROUP BY survived ORDER BY survived;
 
 -- Sobrevivência por classe
-SELECT c.descricao, COUNT(*) AS total, SUM(survived) AS sobreviventes
-FROM fato_passageiro f JOIN dim_classe c USING (id_classe)
-GROUP BY c.descricao ORDER BY total DESC;
+SELECT pclass, COUNT(*) AS total, SUM(survived) AS sobreviventes
+FROM passageiros GROUP BY pclass ORDER BY pclass;
 
 -- Sobrevivência por porto de embarque
-SELECT e.porto, COUNT(*) AS total, SUM(survived) AS sobreviventes
-FROM fato_passageiro f JOIN dim_embarque e USING (id_embarque)
-GROUP BY e.porto ORDER BY total DESC;
+SELECT embarked, COUNT(*) AS total, SUM(survived) AS sobreviventes
+FROM passageiros GROUP BY embarked ORDER BY total DESC;
+
+-- Sobrevivência por sexo
+SELECT sex, COUNT(*) AS total, SUM(survived) AS sobreviventes
+FROM passageiros GROUP BY sex;
 ```
 
 ---
 
-## Modelo dimensional
+## Esquema da tabela
 
 ```
-dim_classe                   dim_embarque
-┌─────────────┐              ┌──────────────┐
-│ id_classe   │              │ id_embarque  │
-│ pclass      │              │ embarked     │
-│ descricao   │              │ porto        │
-└──────┬──────┘              └──────┬───────┘
-       │                             │
-       │       fato_passageiro       │
-       │      ┌──────────────────┐   │
-       └─────►│ id_classe        │◄──┘
-              │ id_embarque      │
-              │ passenger_id     │
-              │ survived         │
-              │ name, sex, age   │
-              │ sibsp, parch     │
-              │ ticket, fare     │
-              │ cabin            │
-              └──────────────────┘
+passageiros
+├── passenger_id  INT PK
+├── survived      INT       (0 = não, 1 = sim)
+├── pclass        INT       (1, 2 ou 3 - classe da passagem)
+├── name          VARCHAR
+├── sex           VARCHAR
+├── age           FLOAT
+├── sibsp         INT       (irmãos/cônjuges a bordo)
+├── parch         INT       (pais/filhos a bordo)
+├── ticket        VARCHAR
+├── fare          FLOAT
+├── cabin         VARCHAR
+└── embarked      CHAR(1)   (S=Southampton, C=Cherbourg, Q=Queenstown)
 ```
 
 ---
@@ -147,7 +146,7 @@ dim_classe                   dim_embarque
 
 `tables.sql` é idempotente (faz `DROP TABLE IF EXISTS` antes de criar). Pode rodar `create_database.py` quantas vezes quiser sem dar erro.
 
-`script-load-database.py` faz `TRUNCATE` na fato antes de carregar, então também é seguro rodar várias vezes.
+`script-load-database.py` faz `TRUNCATE` antes de carregar, então também é seguro rodar várias vezes.
 
 ---
 
@@ -164,3 +163,6 @@ Falta o navegador. Rode: `.venv/Scripts/python.exe -m playwright install chromiu
 
 **`ModuleNotFoundError: No module named 'pandas'` (ou outro)**
 Esqueceu de ativar o venv ou de instalar os requirements.
+
+**Falha ao compilar pandas (Python 3.14)**
+Pandas mais antigo não tem wheel pra Python 3.14. Os `requirements.txt` usam `>=` justamente pra pegar versões recentes. Se ainda assim falhar, use Python 3.12.

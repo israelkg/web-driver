@@ -2,10 +2,11 @@
 
 Projeto da disciplina **Ciência de Dados e Mineração de Dados** (3º período).
 
-Pipeline ETL:
+Pipeline ETL + visualização:
 1. **Extract**: Playwright + BeautifulSoup baixam o dataset Titanic do GitHub
 2. **Transform**: pandas tipa as colunas e trata nulos
 3. **Load**: psycopg2 carrega no PostgreSQL em uma tabela única `passageiros`
+4. **Plot**: matplotlib gera 16 gráficos de análise a partir da tabela
 
 Fonte do dataset: https://github.com/datasciencedojo/datasets/blob/master/titanic.csv
 
@@ -29,8 +30,11 @@ WebDriver/
 ├── script-create-database/
 │   ├── tables.sql                # DDL: tabela passageiros
 │   └── create_database.py        # executa o SQL
-└── load-database/
-    └── script-load-database.py   # ETL pandas + COPY
+├── load-database/
+│   └── script-load-database.py   # ETL pandas + COPY
+└── script-geracao-grafico/
+    ├── script-geracao-grafico.py # gera gráficos via matplotlib
+    └── plots/                    # PNGs gerados (16 gráficos)
 ```
 
 ---
@@ -86,12 +90,15 @@ cd script-create-database && ../.venv/Scripts/python.exe create_database.py && c
 
 # 3. Load - carrega o CSV no Postgres
 cd load-database && ../.venv/Scripts/python.exe script-load-database.py && cd ..
+
+# 4. Plot - gera os gráficos em script-geracao-grafico/plots/
+cd script-geracao-grafico && ../.venv/Scripts/python.exe script-geracao-grafico.py && cd ..
 ```
 
 Ou em uma única linha encadeada (para se um falhar, parar tudo):
 
 ```bash
-cd script-extract && ../.venv/Scripts/python.exe task3_titanic.py && cd ../script-create-database && ../.venv/Scripts/python.exe create_database.py && cd ../load-database && ../.venv/Scripts/python.exe script-load-database.py && cd ..
+cd script-extract && ../.venv/Scripts/python.exe task3_titanic.py && cd ../script-create-database && ../.venv/Scripts/python.exe create_database.py && cd ../load-database && ../.venv/Scripts/python.exe script-load-database.py && cd ../script-geracao-grafico && ../.venv/Scripts/python.exe script-geracao-grafico.py && cd ..
 ```
 
 ---
@@ -147,6 +154,8 @@ passageiros
 `tables.sql` é idempotente (faz `DROP TABLE IF EXISTS` antes de criar). Pode rodar `create_database.py` quantas vezes quiser sem dar erro.
 
 `script-load-database.py` faz `TRUNCATE` antes de carregar, então também é seguro rodar várias vezes.
+
+`script-geracao-grafico.py` sobrescreve os PNGs em `plots/` a cada execução. Roda sozinho desde que a tabela `passageiros` esteja populada.
 
 ---
 
